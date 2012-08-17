@@ -126,6 +126,8 @@ package com.swfwire.decompiler.abc
 			}
 			else
 			{
+				if (values.length == 0) throw new Error("underflow with empty values");
+				if (stacks[parent].values.length != (values.length - 1)) throw new Error("violated element& its parent constraint");
 				ret = distinctvalue[values[values.length - 1]];
 				copyfrom(stacks[parent]);
 			}
@@ -149,7 +151,12 @@ package com.swfwire.decompiler.abc
 		
 		public function get stackinfo():String
 		{
-			return values.map((function(a:int, ...args):String { return distinctvalue[a]; } )).join(' ') + ['(', values.length, ')'].join('');
+			var vecmapped:Vector.<Object>=(Vector.<Object>(values)).map((function(a:int, b:Object, c:Object):String {
+				return distinctvalue[a];
+				} ));
+			var distinctvalues:String = vecmapped.join(', ');
+			//trace('mapped: '+vecmapped.toString()+" distinct: "+distinctvalues);
+			return "["+distinctvalues+"]" + ['(', values.length, ')'].join('');
 		}
 	}
 }

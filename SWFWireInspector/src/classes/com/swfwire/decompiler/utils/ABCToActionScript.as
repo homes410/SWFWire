@@ -406,7 +406,7 @@ package com.swfwire.decompiler.utils
 											  slotNames:Object,
 											  localCount:uint,
 											  start:uint = 0,
-											  cache2:Object = null,
+											  shared_branchcache:Object = null,
 											  hitmap:Object = null, 
 											  hitmapWithStack:Object = null,
 											  knownConditions:Object = null,
@@ -417,7 +417,7 @@ package com.swfwire.decompiler.utils
 											  stack:OperandStack = null,
 											  target:int = -1,
 											  depth:int = 0,
-											  definedLocals:Object = null):Object
+											  definedLocals:Object = null):instructionsToStringReturnType
 		{
 			var lines:Array = [];
 			
@@ -477,13 +477,13 @@ package com.swfwire.decompiler.utils
 					positionLookup[instructions[iter1]] = iter1;
 				}
 			}
-			if(!cache2)
+			if(!shared_branchcache)
 			{
-				cache2 = {};
+				shared_branchcache = {};
 			}
 			
 			var subflow:Object = {};
-			var flow:Array = [];
+			var footprint_pc_stack:Array = [];
 			var sourceUntil:Object = {};
 			var breakOn:int = -1;
 			var firstNextName:String = null;
@@ -505,7 +505,7 @@ package com.swfwire.decompiler.utils
 			{
 				sourceUntil[iter] = lines.join('\n');
 				
-				var key:String = iter+'$'+String(stack);
+				var compound_key_pc_stack:String = iter+'$'+String(stack);
 				//trace('for: '+key+' ('+stack.values.length+')');
 				
 				if(hitmap[iter])
@@ -531,7 +531,7 @@ package com.swfwire.decompiler.utils
 					break;
 				}
 				*/
-				if(hitmapWithStack[key])
+				if(hitmapWithStack[compound_key_pc_stack])
 				{
 					//trace('hitmapWithStack hit: '+key);
 					//lines.push('HITMAPSTACK HIT');
@@ -549,8 +549,8 @@ package com.swfwire.decompiler.utils
 				}
 				subflow[iter] = 1;
 				hitmap[iter] = 1;
-				hitmapWithStack[key] = 1;
-				flow.push(key);
+				hitmapWithStack[compound_key_pc_stack] = 1;
+				footprint_pc_stack.push(compound_key_pc_stack);
 				var op:IInstruction = instructions[iter];
 				var params:Array = [];
 				var line:String = '';
@@ -653,7 +653,7 @@ package com.swfwire.decompiler.utils
 				
 				if(showActionScript)
 				{
-					function branch(target1:int, target2:int, knownConditions1:Object, knownConditions2:Object):Object
+					function branch(pc_target_assumed_expr_is_false:int, pc_target_assumed_expr_is_true:int, knownConditions_when_assumed_expr_is_false:Object, knownConditions_when_assumed_expr_is_true:Object):Object
 					{
 						var tempStr1:String = '';
 						var tempStr2:String = '';
@@ -668,49 +668,48 @@ package com.swfwire.decompiler.utils
 						var scope1:ScopeStack = scope.clone();
 						var scope2:ScopeStack = scope.clone();
 						trace('			branch point: '+iter);
-						trace('			start branch from: '+target1);
-						var r1:Object = instructionsToString(methodName, startTime, instructions,
-							argumentNames, slotNames, localCount, target1, cache2, hitmapCopy3, hitmapCopy1,
-							knownConditions1, positionLookup, true, scope1, locals, stackCopy1, -1, depth + 1, definedLocals);
-						trace('			end branch from: '+target1);
-						trace('			start branch from: '+target2);
-						var r2:Object = instructionsToString(methodName, startTime, instructions,
-							argumentNames, slotNames, localCount, target2, cache2, hitmapCopy4, hitmapCopy2,
-							knownConditions2, positionLookup, true, scope2, locals, stackCopy2, -1, depth + 1, definedLocals);
-						trace('			end branch from: '+target2);
+						trace('			start branch from: '+pc_target_assumed_expr_is_false);
+						var r1:instructionsToStringReturnType = instructionsToString(methodName, startTime, instructions,
+							argumentNames, slotNames, localCount, pc_target_assumed_expr_is_false, shared_branchcache, hitmapCopy3, hitmapCopy1,
+							knownConditions_when_assumed_expr_is_false, positionLookup, true, scope1, locals, stackCopy1, -1, depth + 1, definedLocals);
+						trace('			end branch from: '+pc_target_assumed_expr_is_false);
+						trace('			start branch from: '+pc_target_assumed_expr_is_true);
+						var r2:instructionsToStringReturnType = instructionsToString(methodName, startTime, instructions,
+							argumentNames, slotNames, localCount, pc_target_assumed_expr_is_true, shared_branchcache, hitmapCopy4, hitmapCopy2,
+							knownConditions_when_assumed_expr_is_true, positionLookup, true, scope2, locals, stackCopy2, -1, depth + 1, definedLocals);
+						trace('			end branch from: '+pc_target_assumed_expr_is_true);
+						var r1stmtattr:stmtBlockAttribute=new stmtBlockAttribute(),r2stmtattr:stmtBlockAttribute=new stmtBlockAttribute();
 						
-						var isWhile:Boolean = false;
-						var isForIn:Boolean = false;
-						var isForEachIn:Boolean = false;
+						var converged_pc:int = -1;
+						var converged_pc_stack:String = '';
 						
-						var a1:int = -1;
-						var a2:String = '';
-						
-						var id:int = stack.getid;
+						var converged_stackid:int = stack.getid;
 						
 						//Debug.dump({flow1: r1.flow, flow2: r2.flow});
+						/** find converged stack id
+						*/
 						outer:
-						for(var iter4:int = 0; iter4 < r1.flow.length; iter4++)
+						for(var _r1_iter:int = 0; _r1_iter < r1.footprint_pc_stack.length; _r1_iter++)
 						{
-							for(var iter5:int = 0; iter5 < r2.flow.length; iter5++)
+							for(var _r2_iter:int = 0; _r2_iter < r2.footprint_pc_stack.length; _r2_iter++)
 							{
-								if(r1.flow[iter4] == r2.flow[iter5])
+								if(r1.footprint_pc_stack[_r1_iter] == r2.footprint_pc_stack[_r2_iter])
 								{
-									a2 = r1.flow[iter4];
-									var splitPoint:int = a2.indexOf('$');
-									a1 = int(a2.substr(0, splitPoint));
-									var tempidstr:String = a2.substr(splitPoint + 1);
-									if(tempidstr)
+									converged_pc_stack = r1.footprint_pc_stack[_r1_iter];
+									var splitPoint:int = converged_pc_stack.indexOf('$');
+									converged_pc = int(converged_pc_stack.substr(0, splitPoint));
+									var converged_stackid_str:String = converged_pc_stack.substr(splitPoint + 1);
+									if(converged_stackid_str)
 									{
-										id = int(tempidstr);
+										converged_stackid = int(converged_stackid_str);
 									}
 									else
 									{
-										id = -1;
+										converged_stackid = -1;
 									}
 									
-									r1.flow.splice(iter4);
-									r2.flow.splice(iter5);
+									r1.footprint_pc_stack.splice(_r1_iter);
+									r2.footprint_pc_stack.splice(_r2_iter);
 									break outer;
 								}
 							}
@@ -718,38 +717,40 @@ package com.swfwire.decompiler.utils
 						
 						if(showBranchInfo)
 						{
-							if(a1 >= 0)
+							if(converged_pc >= 0)
 							{
-								lines.push('		MERGE @'+a1);
-								lines.push('		FLOW1 LENGTH: '+r1.flow.length+', BREAK @'+r1.breakOn);
-								lines.push('		FLOW2 LENGTH: '+r2.flow.length+', BREAK @'+r2.breakOn);
+								lines.push('		MERGE @'+converged_pc);
+								lines.push('		FLOW1 LENGTH: '+r1.footprint_pc_stack.length+', BREAK @'+r1.breakOn);
+								lines.push('		FLOW2 LENGTH: '+r2.footprint_pc_stack.length+', BREAK @'+r2.breakOn);
 							}
 							else
 							{
 								lines.push('		NO MERGE');
-								lines.push('		FLOW1 LENGTH: '+r1.flow.length+', BREAK @'+r1.breakOn);
-								lines.push('		FLOW2 LENGTH: '+r2.flow.length+', BREAK @'+r2.breakOn);
+								lines.push('		FLOW1 LENGTH: '+r1.footprint_pc_stack.length+', BREAK @'+r1.breakOn);
+								lines.push('		FLOW2 LENGTH: '+r2.footprint_pc_stack.length+', BREAK @'+r2.breakOn);
 							}
 						}
 						
 						var localFirstNextName:String;
 						var localFirstNextValue:String;
-						
-						if(a1 == -1)
+						/** cannot find converged stack id
+						*/
+						if(converged_pc == -1)
 						{
 							//if(r1.breakOn >= 0 && (r1.breakOn == a1 || a1 == -1))
 							if(r1.breakOn >= 0)
 							{
-								for(var iterFlow1:String in subflow)
+								for(var subflowkey_r1:String in subflow)
 								{
-									if(iterFlow1 == r1.breakOn)
+									if(subflowkey_r1 == String(r1.breakOn))
 									{
-										isWhile = true;
-										r2.flow = [];
-										localFirstNextName = r1.firstNextName;
-										localFirstNextValue = r1.firstNextValue;
-										isForIn = r1.firstNextName != null;
-										isForEachIn = r1.firstNextValue != null;
+										if(showBranchInfo)
+											lines.push('		FOUND CONVERGED FLOW R1 THAT ALREADY REACHED AT ' + subflowkey_r1);
+										r1stmtattr.isWhile = true;
+										r1stmtattr.localFirstNextName = r1.firstNextName;
+										r1stmtattr.localFirstNextValue = r1.firstNextValue;
+										r1stmtattr.isForIn = r1.firstNextName != null;
+										r1stmtattr.isForEachIn = r1.firstNextValue != null;
 										break;
 									}
 								}
@@ -757,16 +758,17 @@ package com.swfwire.decompiler.utils
 							//if(r2.breakOn >= 0 && (r2.breakOn == a1 || a1 == -1))
 							if(r2.breakOn >= 0)
 							{
-								for(var iterFlow2:String in subflow)
+								for(var subflowkey_r2:String in subflow)
 								{
-									if(iterFlow2 == r2.breakOn)
+									if(subflowkey_r2 == String(r2.breakOn))
 									{
-										isWhile = true;
-										r1.flow = [];
-										localFirstNextName = r2.firstNextName;
-										localFirstNextValue = r2.firstNextValue;
-										isForIn = r2.firstNextName != null;
-										isForEachIn = r2.firstNextValue != null;
+										if(showBranchInfo)
+											lines.push('		FOUND CONVERGED FLOW R2 THAT ALREADY REACHED AT ' + subflowkey_r1);
+										r2stmtattr.isWhile = true;
+										r2stmtattr.localFirstNextName = r2.firstNextName;
+										r2stmtattr.localFirstNextValue = r2.firstNextValue;
+										r2stmtattr.isForIn = r2.firstNextName != null;
+										r2stmtattr.isForEachIn = r2.firstNextValue != null;
 										break;
 									}
 								}
@@ -776,28 +778,28 @@ package com.swfwire.decompiler.utils
 						//Debug.dump(r1.flow);
 						//Debug.dump(r2.flow);
 						
-						for(var iterHit2:uint = 0; iterHit2 < r1.flow.length; iterHit2++)
+						for(var r1_iter:uint = 0; r1_iter < r1.footprint_pc_stack.length; r1_iter++)
 						{
-							if(r1.flow[iterHit2] == a1)
+							if(r1.footprint_pc_stack[r1_iter] == converged_pc)
 							{
 								break;
 							}
-							hitmapWithStack[r1.flow[iterHit2]] = 1;
+							hitmapWithStack[r1.footprint_pc_stack[r1_iter]] = 1;
 						}
 						
-						for(var iterHit3:uint = 0; iterHit3 < r2.flow.length; iterHit3++)
+						for(var r2_iter:uint = 0; r2_iter < r2.footprint_pc_stack.length; r2_iter++)
 						{
-							if(r2.flow[iterHit3] == a1)
+							if(r2.footprint_pc_stack[r2_iter] == converged_pc)
 							{
 								break;
 							}
-							hitmapWithStack[r2.flow[iterHit3]] = 1;
+							hitmapWithStack[r2.footprint_pc_stack[r2_iter]] = 1;
 						}
 						
-						if(a1 >= 0)
+						if(converged_pc >= 0)
 						{
-							tempStr1 = r1.sourceUntil[a1];
-							tempStr2 = r2.sourceUntil[a1];
+							tempStr1 = r1.sourceUntil[converged_pc];
+							tempStr2 = r2.sourceUntil[converged_pc];
 						}
 						else
 						{
@@ -813,12 +815,10 @@ package com.swfwire.decompiler.utils
 						tempStr2 = (tempStr2 && r2.hassource) ? tempStr2 : '';
 						
 						var localResult:Object = {
-							flow1: r1.flow, flow2: r2.flow, 
-							source1: tempStr1, source2: tempStr2, 
-							merge: a1, isWhile: isWhile, 
-							isForIn: isForIn, isForEachIn: isForEachIn,
-							firstNextName: localFirstNextName, firstNextValue: localFirstNextValue,
-							id: id
+							footprint_pc_stack_expr_is_false: r1.footprint_pc_stack, footprint_pc_stack_expr_is_true: r2.footprint_pc_stack, 
+							source_expr_is_false: tempStr1, source_expr_is_true: tempStr2, 
+							converged_pc: converged_pc, r1stmtattr:r1stmtattr,r2stmtattr:r2stmtattr,
+							converged_stackid: converged_stackid
 						};
 						return localResult;
 					}
@@ -849,84 +849,139 @@ package com.swfwire.decompiler.utils
 					function xor(x:Boolean, y:Boolean):Boolean {
 						return !( x && y ) && ( x || y );
 					}
-					function conditional(condition:String, inequality:Boolean):void
+					function whethertoexecute(knowncondition:Boolean, xorexprop:Boolean, needtonegateoperand:Boolean):Boolean { 
+						return xor(knowncondition, xorexprop) == !needtonegateoperand;
+					}
+					function conditional(condition:String, needtonegateoperand:Boolean):void
 					{
+						/*
+						if (needtonegateoperand) {
+							needtonegateoperand = false;
+							condition = "!(" + condition + ")";
+						}*/
+						//lines.push('!!!! needtonegateoperand was ' + needtonegateoperand);
 						tempInt = positionLookup[Object(op).reference];
 						condition = prunedup(condition);
 						var canonicalboolexp:Object= unwrapbool(condition);
-						var canonicalcondition:String=canonicalboolexp.condexpr;
+						var canonicalcondition:String = canonicalboolexp.condexpr;
+						//lines.push('!!!! canonicalboolexp.xorexprop was ' + canonicalboolexp.xorexprop);
 						var isdecidable:Boolean = canonicalcondition && knownConditions.hasOwnProperty(canonicalcondition);
 							if(isdecidable)
 							{
-								var bcondition:Boolean = xor(knownConditions[canonicalcondition], canonicalboolexp.xorexprop);
-								var execute:Boolean = bcondition == !inequality;
-								if(execute)
+								if(whethertoexecute(knownConditions[canonicalcondition], canonicalboolexp.xorexprop,needtonegateoperand))
 								{
-									iter = tempInt-1;
+									iter = tempInt - 1;
 								}
-								trace('KNOWN CONDITION: ' + canonicalcondition + ' = ' + knownConditions[canonicalcondition] + ', skipping to: ' + iter);
+								if (showBranchInfo){
+									var prepstr:String = 'KNOWN CONDITION: ' + canonicalcondition + ' = ' + knownConditions[canonicalcondition];
+									if (whethertoexecute(knownConditions[canonicalcondition], canonicalboolexp.xorexprop, needtonegateoperand)) {
+										prepstr += ', skipping to: ' + tempInt + "\n";
+									}else {
+										prepstr += ', not taking branch operand: ' + (iter + 1) + "\n";
+									}
+									source = prepstr + source;
+								}
 								return;
 							}
+							else if (showBranchInfo){
+								source = 'UNKNOWN CONDITION: ' + canonicalcondition + ' = ' + knownConditions[canonicalcondition] + ', would try every branch target: ' +tempInt+ ', '+ (iter+1) + "\n" + source;
+							}
 						
-						var key2:String = iter+'$'+String(stack);
-						var cached:Object;
+						var compound_key_pc_stack:String = iter+'$'+String(stack);
+						var foundbranchcache:Object;
 						
-						if(cache2[key2])
+						if(shared_branchcache[compound_key_pc_stack])
 						{
+							///lines.push('!!!! cache was hit ' + compound_key_pc_stack);
 							trace('CACHE HIT!');
-							trace('	key: '+key2);
-							cached = cache2[key2];
+							trace('	key: '+compound_key_pc_stack);
+							foundbranchcache = shared_branchcache[compound_key_pc_stack];
 							//return 'CACHE @'+key2+ '\n' + cached.source;
-							b = cached.b;
+							b = foundbranchcache.b;
+							//stack.copyfrom(OperandStack.stacks[b.id]);
 						}
 						else
 						{
 							trace('CACHE MISS! EXECUTING EXPENSIVE BRANCH');
-							trace('	key: '+key2);
+							trace('	key: '+compound_key_pc_stack);
 							
-							var knownConditions1:Object = cloneObject(knownConditions);
-							var knownConditions2:Object = cloneObject(knownConditions);
-							knownConditions1[canonicalcondition] = !canonicalboolexp.xorexprop;
-							knownConditions2[canonicalcondition] = canonicalboolexp.xorexprop;
-							if(xor(inequality, canonicalboolexp.xorexprop))
+							var knownConditions_when_assumed_expr_is_false:Object = cloneObject(knownConditions);
+							var knownConditions_when_assumed_expr_is_true:Object = cloneObject(knownConditions);
+							//if (!isdecidable && canonicalboolexp.xorexprop) throw new Error("unexpected constraint");
+							knownConditions_when_assumed_expr_is_false[canonicalcondition] = xor(canonicalboolexp.xorexprop,needtonegateoperand);
+							knownConditions_when_assumed_expr_is_true[canonicalcondition] = !xor(canonicalboolexp.xorexprop,needtonegateoperand);
+							if(needtonegateoperand)
 							{
-								b = branch(tempInt, iter + 1, knownConditions1, knownConditions2);
+								b = branch(tempInt,iter + 1, knownConditions_when_assumed_expr_is_true, knownConditions_when_assumed_expr_is_false);
+								/*
+								lines.push("[!!!"+b.source_expr_is_false+"!!!]");
+								lines.push("[!!!" + b.source_expr_is_true + "!!!]");
+								*/
 							}
 							else
 							{
-								b = branch(iter + 1, tempInt, knownConditions2, knownConditions1);
+								b = branch(iter + 1, tempInt, knownConditions_when_assumed_expr_is_false, knownConditions_when_assumed_expr_is_true);
+							}
+							if (showBranchInfo){
+								b.source_expr_is_false = 'ASSUMED '+canonicalcondition + ' = '+knownConditions_when_assumed_expr_is_false[canonicalcondition]+' [1]\n' + b.source_expr_is_false;
+								b.source_expr_is_true = 'ASSUMED '+canonicalcondition + ' = '+knownConditions_when_assumed_expr_is_true[canonicalcondition]+' [2]\n' + b.source_expr_is_true;
 							}
 						}
-						stack.copyfrom(OperandStack.stacks[b.id]);
 
-						var cond:String = b.isWhile ? 'while' : 'if';
+						//var cond:String = b.
 						var checkHasNext:RegExp = /^<hasnext2>\((.*)\)$/;
-						if(b.isWhile && b.isForIn)
-						{
-							var matches:Array = condition.match(checkHasNext);
-							if(matches)
-							{
-								cond = 'for';
-								condition = b.firstNextName+' in '+matches[1];
-							}
-						}
-						if(b.isWhile && b.isForEachIn)
-						{
-							var matches2:Array = condition.match(checkHasNext);
-							if(matches2)
-							{
-								cond = 'for each';
-								condition = b.firstNextValue+' in '+matches2[1];
-							}
-						}
-						
+						var matches:Array = condition.match(checkHasNext);
+						var stmtattr:stmtBlockAttribute=null;
+						var cond:String;
+						var specialcaseinwhilestmt:Boolean = false;
+						var specialcasestringinwhilestmt:String = '';
 						tempStr2 = '';
-						var hasstatement:Array = [(b.flow1.length > 0) && (b.source1.length > 0),(b.flow2.length > 0) && (b.source2.length > 0)];
+						if (b.r2stmtattr.isWhile)
+						{
+							cond= b.r2stmtattr.emitCond();
+							if (matches) {
+									if (b.r2stmtattr.isForIn)
+										{
+											condition = b.r2stmtattr.firstNextName+' in '+matches[1];
+										}
+									else if (b.r1stmtattr.isForEachIn)
+										{
+											condition = b.r2stmtattr.firstNextValue+' in '+matches[1];
+										}
+							}
+							else { 
+								specialcaseinwhilestmt = true;
+								tempStr2 = 'while(' + condition + ')\n{\n'+b.source_expr_is_true+'\n}\n'+b.source_expr_is_false;
+							}
+						}
+						else {
+							cond = b.r1stmtattr.emitCond();
+							if (b.r1stmtattr.isWhile){
+							if (matches) 
+								{
+									if (b.r1stmtattr.isForIn)
+										{
+											condition = b.r1stmtattr.firstNextName+' in '+matches[1];
+										}
+									else if (b.r1stmtattr.isForEachIn)
+										{
+											condition = b.r1stmtattr.firstNextValue+' in '+matches[1];
+										}
+								}
+								else { 
+									specialcaseinwhilestmt = true;
+									tempStr2 = 'while(!(' + condition + '))\n{\n'+b.source_expr_is_false+'\n}\n'+b.source_expr_is_true;
+								}
+							}
+						}
+						///lines.push('!!!! specialcaseinwhilestmt was ' + specialcaseinwhilestmt);
+						if (!specialcaseinwhilestmt){
+						var hasstatement:Array = [(b.source_expr_is_false.length > 0), (b.source_expr_is_true.length > 0)];
 						if(hasstatement[0])
 						{
 							if(hasstatement[1])
 							{
-								var matches3:Array = b.source1.match(/^[\s]*(if\([^)]+\)[\s]*{.*}[\s]*$)/s);
+								var matches3:Array = b.source_expr_is_false.match(/^[\s]*(if\([^)]+\)[\s]*{.*}[\s]*$)/s);
 								var elseBlock:String;
 								if(matches3)
 								{
@@ -934,36 +989,36 @@ package com.swfwire.decompiler.utils
 								}
 								else
 								{
-									elseBlock = 'else\n{\n'+b.source1+'\n}';
+									elseBlock = 'else\n{\n'+b.source_expr_is_false+'\n}';
 								}
-								tempStr2 = cond+'('+condition+')\n{\n'+b.source2+'\n}\n'+elseBlock;
+								tempStr2 = cond+'('+condition+')\n{\n'+b.source_expr_is_true+'\n}\n'+elseBlock;
 							}
 							else
 							{
-								tempStr2 = cond+'(!('+condition+'))\n{\n'+b.source1+'\n}';
+								tempStr2 = cond+'(!('+condition+'))\n{\n'+b.source_expr_is_false+'\n}';
 							}
 						}
 						else
 						{
 							if(hasstatement[1])
 							{
-								tempStr2 = cond+'('+condition+')\n{\n'+b.source2+'\n}';
+								tempStr2 = cond+'('+condition+')\n{\n'+b.source_expr_is_true+'\n}';
 							}
 						}
+						}
+						source = source+tempStr2;
 						
-						source = tempStr2;
-						
-						if(b.merge > 0)
+						if(b.converged_pc > 0)
 						{
-							iter = b.merge - 1;
+							iter = b.converged_pc - 1;
 						}
 						
 						if(showBranchInfo)
 						{
-							source = '//'+key2+'\n'+source;
+							source = '//'+compound_key_pc_stack+'\n'+source;
 						}
 						
-						if(cached)
+						if(foundbranchcache)
 						{
 							if(showBranchInfo)
 							{
@@ -972,7 +1027,7 @@ package com.swfwire.decompiler.utils
 						}
 						else
 						{
-							cache2[key2] = {b: b};
+							shared_branchcache[compound_key_pc_stack] = {b: b};
 						}
 					}
 					
@@ -1860,6 +1915,10 @@ package com.swfwire.decompiler.utils
 					{
 						coerce('Number');
 					}
+					else if(op is Instruction_convert_s)
+					{
+						coerce('String');
+					}
 					else if(op is Instruction_convert_i)
 					{
 						coerce('int');
@@ -2104,12 +2163,14 @@ package com.swfwire.decompiler.utils
 					}
 				}
 			}
-			var resultObj:Object;
-			resultObj = {
-				result: lines.join('\n'), flow: flow, 
-				breakOn: breakOn, sourceUntil: sourceUntil, 
-				firstNextName: firstNextName, firstNextValue: firstNextValue, hassource:hassource
-			};
+			var resultObj:instructionsToStringReturnType=new instructionsToStringReturnType();
+				resultObj.result = lines.join('\n')         ;
+				resultObj.footprint_pc_stack= footprint_pc_stack                        ;
+				resultObj.breakOn = breakOn                 ;
+				resultObj.sourceUntil= sourceUntil          ;
+				resultObj.firstNextName = firstNextName     ;
+				resultObj.firstNextValue= firstNextValue    ;
+				resultObj.hassource = hassource               ;
 			return resultObj;
 		}
 		
